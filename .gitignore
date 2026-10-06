@@ -1,0 +1,54 @@
+# ---------- Secrets: real env files stay local, only the scrubbed examples are committed ----------
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# ---------- Python (backend) ----------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Local SQLite database (production uses the Render persistent disk at /data)
+*.db
+*.db-shm
+*.db-wal
+*.sqlite3
+
+# ---------- Node / Next.js (frontend) ----------
+node_modules/
+.next/
+out/
+build/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+.vercel/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ---------- Render / Docker ----------
+.render/
+
+# ---------- Logs, OS and editor files ----------
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
+
+# ---------- Reference material that isn't part of the codebase ----------
+# Uncomment to keep the design screenshots out of the repository:
+# extras/

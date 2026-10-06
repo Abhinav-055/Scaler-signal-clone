@@ -1,0 +1,5 @@
+# Local development and CI: the runtime packages plus test/lint tools (not installed in production).
+-r requirements.txt
+httpx==0.28.1
+pytest==9.1.1
+ruff==0.16.10
