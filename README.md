@@ -65,7 +65,7 @@ Any other number creates a new account and goes through profile setup.
   - A composer with emoji on the left, a pill-shaped message box, then sticker, mic/send and +.
   - In groups, the sender's avatar sits beside the last message of a run.
   - System messages show an icon (timer, member added/removed, edit).
-- [x] Keyboard shortcuts: `Ctrl/⌘+K` search, `Ctrl/⌘+N` new chat, `Alt+↑/↓` switch chat, `Esc` close, `Ctrl/⌘+/` help
+- [x] Keyboard shortcuts: `Ctrl/⌘+K` search, `Alt+N` new chat (browsers reserve `Ctrl/⌘+N` for a new window; it works only in an installed app), `Alt+↑/↓` switch chat, `Esc` close, `Ctrl/⌘+/` help
 - [x] Loading skeletons, "Connecting…" banner, aria labels, visible focus states, reduced-motion support
 - [x] Calls and Stories tabs as "coming soon" pages
 

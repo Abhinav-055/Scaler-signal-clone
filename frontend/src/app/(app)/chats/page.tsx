@@ -17,7 +17,7 @@ export default function WelcomePane() {
         Privacy is possible. Signal messages and calls are always end-to-end encrypted.
       </p>
       <p className="text-[12px] text-muted">
-        Press <kbd className="rounded bg-input px-1.5 py-0.5">Ctrl/⌘ + N</kbd> to start a new chat
+        Press <kbd className="rounded bg-input px-1.5 py-0.5">Alt + N</kbd> to start a new chat
       </p>
     </div>
   );

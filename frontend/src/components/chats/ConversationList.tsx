@@ -62,7 +62,7 @@ export function ConversationList({ compact = false }: { compact?: boolean }) {
         ) : (
           <>
             <h1 className={`flex-1 text-[20px] font-semibold ${hideWhenCompact}`}>Chats</h1>
-            <IconButton label="New chat (Ctrl+N)" onClick={() => openModal("newChat")} className="text-text!">
+            <IconButton label="New chat (Alt+N)" onClick={() => openModal("newChat")} className="text-text!">
               <SquarePen size={20} strokeWidth={1.8} />
             </IconButton>
             <IconButton

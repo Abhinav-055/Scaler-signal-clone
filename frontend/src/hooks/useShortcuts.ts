@@ -21,7 +21,10 @@ export function useShortcuts(): void {
         if (!pathname.startsWith("/chats")) router.push("/chats");
         ui.closeModal();
         ui.focusSearch();
-      } else if (mod && key === "n") {
+      } else if ((mod && key === "n") || (e.altKey && !mod && e.code === "KeyN")) {
+        // Browsers reserve Ctrl/⌘+N for "new window" and never pass it to the page, so in a
+        // normal tab Alt+N is the working shortcut. Ctrl/⌘+N still works when the site runs as
+        // an installed app. e.code is used because Option+N on a Mac types "˜" as e.key.
         e.preventDefault();
         ui.openModal("newChat");
       } else if (mod && (key === "/" || key === "?")) {

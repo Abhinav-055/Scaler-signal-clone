@@ -5,7 +5,7 @@ import { useUi } from "@/store/ui";
 
 const SHORTCUTS: [string, string][] = [
   ["Search chats", "Ctrl/⌘ + K"],
-  ["New chat", "Ctrl/⌘ + N"],
+  ["New chat", "Alt + N"],
   ["Previous chat", "Alt + ↑"],
   ["Next chat", "Alt + ↓"],
   ["Send message", "Enter"],
