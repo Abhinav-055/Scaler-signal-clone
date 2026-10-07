@@ -17,7 +17,7 @@ venv/
 .coverage
 htmlcov/
 
-# Local SQLite database (production uses the Render persistent disk at /data)
+# Local SQLite database files
 *.db
 *.db-shm
 *.db-wal

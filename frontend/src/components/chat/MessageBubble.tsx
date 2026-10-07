@@ -127,11 +127,19 @@ function MessageBubbleInner(props: BubbleProps) {
   const colors = outgoing ? "bg-bubble-out text-bubble-out-text" : "bg-bubble-in text-bubble-in-text";
   const metaColor = outgoing ? "text-bubble-out-meta" : "text-secondary";
   const imageOnly = msg.type === "image" && !msg.body && !msg.reply_to;
+  // Videos fill the bubble edge to edge: no padding, a fixed width, and the time floats on the
+  // video's top-right corner (the player controls are at the bottom). Only a sender name or
+  // quote above the video, or a caption below it, gets its own padding.
+  const isVideo =
+    msg.attachments[0]?.resource_type === "video" || !!msg.uploads?.[0]?.mimeType.startsWith("video/");
+  const hasHeader = (isGroup && !outgoing && firstInRun) || !!msg.reply_to;
+  const videoOnly = isVideo && !msg.body && !msg.reply_to;
+  const overlayMeta = imageOnly || videoOnly;
 
   const meta = (
     <span
       className={`ml-2.5 inline-flex translate-y-[4px] items-center gap-1 align-bottom text-[12px] whitespace-nowrap ${
-        imageOnly ? "rounded-full bg-black/45 px-1.5 py-0.5 text-white" : metaColor
+        overlayMeta ? "rounded-full bg-black/45 px-1.5 py-0.5 text-white" : metaColor
       } float-right`}
     >
       {formatBubbleTime(msg.created_at, now)}
@@ -189,10 +197,10 @@ function MessageBubbleInner(props: BubbleProps) {
               setMenu({ x: e.clientX, y: e.clientY });
             }}
             aria-label={`Message from ${outgoing ? "you" : (sender?.display_name ?? "unknown")}`}
-            className={`min-w-0 overflow-hidden rounded-[18px] ${corners} ${colors} ${imageOnly ? "" : "px-3 py-2"} ${msg.status === "failed" ? "opacity-70" : ""}`}
+            className={`min-w-0 overflow-hidden rounded-[18px] ${corners} ${colors} ${imageOnly ? "" : isVideo ? "w-[300px] max-w-full" : "px-3 py-2"} ${msg.status === "failed" ? "opacity-70" : ""}`}
           >
             {isGroup && !outgoing && firstInRun && (
-              <div className={`mb-0.5 text-[14px] font-semibold ${imageOnly ? "px-3 pt-2" : ""}`} style={{ color: nameColor(msg.sender_id) }}>
+              <div className={`mb-0.5 text-[14px] font-semibold ${imageOnly || isVideo ? "px-3 pt-2" : ""}`} style={{ color: nameColor(msg.sender_id) }}>
                 {senderName(conv, msg.sender_id, meId, contacts)}
               </div>
             )}
@@ -200,7 +208,7 @@ function MessageBubbleInner(props: BubbleProps) {
             {msg.reply_to && (
               <button
                 onClick={() => props.onJumpTo(msg.reply_to!.id)}
-                className={`mb-1.5 block w-full rounded-lg border-l-4 px-2 py-1 text-left text-[13px] ${
+                className={`mb-1.5 block rounded-lg border-l-4 px-2 py-1 text-left text-[13px] ${isVideo ? "mx-3 mt-2 w-[calc(100%-1.5rem)]" : "w-full"} ${
                   outgoing ? "border-white/80 bg-white/20" : "border-accent bg-black/5 dark:bg-white/10"
                 }`}
               >
@@ -212,18 +220,18 @@ function MessageBubbleInner(props: BubbleProps) {
             <Attachments
               msg={msg}
               imageOnly={imageOnly}
-              flushTop={!msg.reply_to && !(isGroup && !outgoing && firstInRun)}
+              flushTop={!hasHeader}
               onOpenImage={props.onOpenImage}
               outgoing={outgoing}
             />
 
-            {msg.body || !imageOnly ? (
-              <div className="text-[15px] leading-[21px] wrap-break-word whitespace-pre-wrap">
+            {!overlayMeta ? (
+              <div className={`text-[15px] leading-[21px] wrap-break-word whitespace-pre-wrap ${isVideo ? "px-3 pt-1.5 pb-2" : ""}`}>
                 {msg.body}
                 {meta}
               </div>
             ) : (
-              <div className="pointer-events-none absolute right-2 bottom-2">{meta}</div>
+              <div className={`pointer-events-none absolute right-2 ${isVideo ? "top-2" : "bottom-2"}`}>{meta}</div>
             )}
           </div>
 
@@ -359,22 +367,24 @@ function Attachments({
 }: {
   msg: ChatMessage;
   imageOnly: boolean;
-  /** Image touches the bubble top edge (no sender name or quote above it). */
+  /** Media touches the bubble top edge (no sender name or quote above it). */
   flushTop: boolean;
   outgoing: boolean;
   onOpenImage: (url: string, name: string) => void;
 }) {
   // Captioned images bleed to the bubble edges; image-only bubbles are just the image.
   const edge = imageOnly ? "" : flushTop ? "-mx-3 -mt-[7px] mb-1.5" : "-mx-3 mb-1.5";
+  // Videos sit in an unpadded bubble, so they only need a gap under a sender name or quote.
+  const videoEdge = flushTop ? "" : "mt-1";
   // Optimistic message still uploading: show the local preview with progress.
   if (msg.uploads?.length) {
     const up = msg.uploads[0];
     const pct = Math.round(up.progress * 100);
     if (up.previewUrl) {
       return (
-        <div className={`relative ${edge}`}>
+        <div className={`relative ${up.mimeType.startsWith("video/") ? videoEdge : edge}`}>
           {up.mimeType.startsWith("video/") ? (
-            <video src={up.previewUrl} muted className="block max-h-[320px] w-[300px] max-w-full bg-black object-cover opacity-70" />
+            <video src={up.previewUrl} muted className="block max-h-[320px] w-full bg-black object-cover opacity-70" />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={up.previewUrl} alt={up.name} className="block max-h-[320px] w-[300px] max-w-full object-cover opacity-70" />
@@ -411,7 +421,7 @@ function Attachments({
             preload="metadata"
             playsInline
             aria-label={`Video ${a.file_name}`}
-            className={`block max-h-[360px] w-[300px] max-w-full bg-black ${edge}`}
+            className={`block max-h-[360px] w-full bg-black ${videoEdge}`}
             style={a.width && a.height ? { aspectRatio: `${a.width} / ${a.height}` } : undefined}
           />
         ) : a.resource_type === "image" ? (

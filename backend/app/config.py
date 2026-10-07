@@ -9,8 +9,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # Locally the DB lives next to the code; on Render set
-    # DATABASE_URL=sqlite:////data/signal.db so it lands on the persistent disk.
+    # The DB file lives next to the code. On Render's free plan (no persistent disk) it is
+    # recreated on every deploy/restart, and AUTO_SEED refills the demo data.
     database_url: str = "sqlite:///./signal.db"
     # Comma-separated list, e.g. "http://localhost:3000,https://my-app.vercel.app"
     cors_origins: str = "http://localhost:3000"

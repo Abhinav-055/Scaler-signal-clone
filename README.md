@@ -6,16 +6,21 @@ A functional clone of **Signal Desktop**: real-time 1:1 and group messaging with
 - **Backend:** FastAPI · SQLAlchemy 2.0 · Alembic · SQLite (WAL) · native WebSockets, deployed on **Render**
 - **Files:** Cloudinary (signed direct uploads from the browser; signed, expiring download links for files)
 
+Built by [@Abhinav-055](https://github.com/Abhinav-055).
+
 ## Live demo
 
 | | URL |
 |---|---|
-| App (Vercel) | `https://<your-app>.vercel.app` ← _fill in after deploying_ |
-| API (Render) | `https://<your-api>.onrender.com/api/health` |
+| App (Vercel) | **https://super-doodle-ten.vercel.app** |
+| API (Render) | https://super-doodle-nou4.onrender.com/api/health |
+| Repository | https://github.com/Abhinav-055/Scaler-signal-clone |
+
+> The API runs on Render's free plan. After 15 minutes without traffic it goes to sleep, so the **first visit can take about a minute** while it wakes up; the "Connecting…" bar disappears once it's up. The database is reset to the demo data whenever the service restarts or redeploys.
 
 ### Demo accounts
 
-Every account uses the verification code **`123456`** (the OTP is mocked and set by the `FIXED_OTP` env var; `123456` is the value in `.env.example`). The login screen also has one-click buttons for the first three.
+Every account uses the verification code **`123456`** (the OTP is mocked and set by the `FIXED_OTP` env var; `123456` is the value in `backend/.env.example`). The login screen also has one-click buttons for the first three.
 
 | Phone | Name | Good for |
 |---|---|---|
@@ -78,7 +83,7 @@ flowchart LR
       API[FastAPI<br/>REST /api/*]
       WS[WebSocket /ws<br/>ConnectionManager]
       EXP[Expiry task<br/>every 5s]
-      DB[(SQLite WAL<br/>/data/signal.db<br/>persistent disk)]
+      DB[(SQLite WAL<br/>signal.db<br/>reset on redeploy)]
     end
     CDN[(Cloudinary)]
 
@@ -135,106 +140,125 @@ frontend/src/
 ```mermaid
 erDiagram
     users ||--o{ sessions : "logs in with"
-    users ||--o{ contacts : owns
+    users ||--o{ contacts : "owns (owner_id)"
+    users ||--o{ contacts : "is listed (contact_id)"
+    users ||--o{ conversations : "creates"
     users ||--o{ conversation_members : "is member"
     conversations ||--o{ conversation_members : has
     conversations ||--o{ messages : contains
     users ||--o{ messages : sends
-    messages ||--o{ message_receipts : "tracked by"
-    messages ||--o{ reactions : has
-    messages ||--o{ attachments : has
     messages ||--o| messages : "replies to"
+    messages ||--o{ message_receipts : "tracked by"
+    users ||--o{ message_receipts : receives
+    messages ||--o{ reactions : has
+    users ||--o{ reactions : gives
+    messages ||--o{ attachments : has
     messages ||--o{ hidden_messages : "hidden by"
+    users ||--o{ hidden_messages : hides
 
     users {
         int id PK
-        string phone UK
-        string username UK
-        string display_name
-        string avatar_url
-        string about
-        string avatar_color
+        string phone UK "max 20"
+        string username UK "nullable, max 32"
+        string display_name "max 64"
+        string avatar_url "nullable"
+        string avatar_public_id "nullable, Cloudinary id"
+        string about "max 140"
+        string avatar_color "initials colour"
         datetime last_seen_at
+        datetime created_at
     }
     sessions {
         int id PK
-        int user_id FK
+        int user_id FK "indexed, CASCADE"
         string token UK
+        datetime created_at
         datetime expires_at
     }
     contacts {
-        int owner_id PK
-        int contact_id PK
-        string nickname
+        int owner_id PK,FK "CASCADE"
+        int contact_id PK,FK "CASCADE"
+        string nickname "nullable"
+        datetime created_at
     }
     conversations {
         int id PK
-        string type
-        string name
-        string description
-        int disappearing_seconds
-        datetime last_message_at
+        string type "direct | group"
+        string name "nullable (groups)"
+        string avatar_url "nullable"
+        string description "nullable, max 280"
+        int created_by FK "nullable, SET NULL"
+        int disappearing_seconds "nullable = off"
+        datetime last_message_at "indexed"
+        datetime created_at
     }
     conversation_members {
-        int conversation_id PK
-        int user_id PK
-        string role
+        int conversation_id PK,FK "CASCADE"
+        int user_id PK,FK "indexed, CASCADE"
+        string role "admin | member"
         datetime joined_at
-        datetime left_at
-        int last_read_message_id
-        datetime muted_until
+        datetime left_at "nullable = active"
+        int last_read_message_id "nullable, plain int"
+        datetime muted_until "nullable"
         bool archived
     }
     messages {
         int id PK
-        int conversation_id FK
-        int sender_id FK
-        string client_id UK
-        string type
+        int conversation_id FK "CASCADE"
+        int sender_id FK "nullable, SET NULL"
+        string client_id UK "idempotency key"
+        string type "text | image | file | system"
         text body
-        int reply_to_id FK
+        int reply_to_id FK "nullable, SET NULL"
         datetime created_at
-        datetime expires_at
+        datetime edited_at "nullable"
+        datetime deleted_at "nullable"
+        datetime expires_at "nullable, indexed"
     }
     message_receipts {
-        int message_id PK
-        int user_id PK
-        datetime delivered_at
-        datetime read_at
+        int message_id PK,FK "CASCADE"
+        int user_id PK,FK "indexed, CASCADE"
+        datetime delivered_at "nullable"
+        datetime read_at "nullable"
     }
     reactions {
-        int message_id PK
-        int user_id PK
+        int message_id PK,FK "CASCADE"
+        int user_id PK,FK "CASCADE"
         string emoji
+        datetime created_at
     }
     attachments {
         int id PK
-        int message_id FK
-        string public_id
+        int message_id FK "indexed, CASCADE"
+        string public_id "Cloudinary id"
         string secure_url
-        string resource_type
+        string resource_type "image | video | raw"
+        string file_name
+        string mime_type
         int size_bytes
+        int width "nullable"
+        int height "nullable"
     }
     hidden_messages {
-        int message_id PK
-        int user_id PK
+        int message_id PK,FK "CASCADE"
+        int user_id PK,FK "CASCADE"
     }
 ```
 
 | Table | Purpose |
 |---|---|
-| `users` | One row per phone number. `avatar_color` is a stable pastel used for the initials avatar. |
+| `users` | One row per phone number (unique), with an optional unique `@username`. `avatar_public_id` lets the old photo be deleted from Cloudinary when it changes; `avatar_color` is a stable pastel for the initials avatar. |
 | `sessions` | Random bearer tokens with an expiry. Logout deletes the row. |
 | `contacts` | One-directional address book (`owner` → `contact`) with an optional nickname. |
 | `conversations` | Direct and group chats in **one table** (`type`). Only one direct chat per pair, enforced in `services/conversations.find_direct`. |
 | `conversation_members` | Membership plus per-user state: role, read pointer, mute, archive. Leaving sets `left_at`; rows are never deleted, so history stays readable. |
-| `messages` | Text, image, file, and system messages. `client_id` is **UNIQUE**, which makes sends idempotent. Index on `(conversation_id, created_at)`. |
+| `messages` | Text, image, file (incl. video) and system messages. `client_id` is **UNIQUE**, which makes sends idempotent. Composite index on `(conversation_id, created_at)` for paging; `expires_at` is indexed for the disappearing-messages loop. `edited_at`/`deleted_at` are reserved for edit/delete-for-everyone (not used yet). |
 | `message_receipts` | One row per (message, recipient), created at send time; `delivered_at`/`read_at` filled in later. |
 | `reactions` | PK `(message_id, user_id)` ⇒ one reaction per user per message. |
-| `attachments` | Cloudinary metadata only (public_id, URL, type, size, dimensions). No file bytes in the database. |
+| `attachments` | Cloudinary metadata only: `public_id`, URL, `resource_type` (`image` / `video` / `raw`), file name, MIME type, size, and dimensions for images/videos. No file bytes in the database. |
 | `hidden_messages` | **Added to the given schema** for "delete for me", which is per-user state. |
 
-All foreign keys declare `ON DELETE` behaviour (CASCADE for owned rows, SET NULL for `sender_id`/`reply_to_id`/`created_by`). SQLite enforces them via `PRAGMA foreign_keys=ON`.
+All foreign keys declare `ON DELETE` behaviour (CASCADE for owned rows, SET NULL for `sender_id`/`reply_to_id`/`created_by`). SQLite enforces them via `PRAGMA foreign_keys=ON`. `last_read_message_id` is deliberately a plain integer, not a foreign key, so an expired or deleted message never breaks a read pointer. Extra indexes cover the per-user lookups: `sessions.user_id`, `conversation_members.user_id`, `message_receipts.user_id`, `attachments.message_id`, `conversations.last_message_at`. The schema is created by the Alembic migration in `backend/alembic/versions/`.
 
 **Derived, not stored:**
 - **Message status**: `sent` once the row exists; `delivered`/`read` once *every current recipient's* receipt has that timestamp. Groups take the lowest state, and people who left are ignored.
@@ -309,17 +333,16 @@ Frames are JSON `{"type": "...", "payload": {...}}`. An invalid token closes the
 | `backend/` | FastAPI app, Alembic migrations, seed script, tests, `Dockerfile` |
 | `frontend/` | Next.js app (deployed to Vercel) |
 | `frontend/assets/brand/` | The Signal brand SVGs the app is built from (logo/wordmark paths, tab icon) |
-| `extras/` | Reference material that isn't part of the build: unused brand variants, design screenshots |
-| `render.yaml` | Render Blueprint for the backend (Docker, persistent disk, health check, env vars) |
-| `DEPLOY.md` | Step-by-step Render + Vercel deployment, verification and troubleshooting |
-| `NOTES.md` | Screen-by-screen design notes and the interview briefing |
-| `.env.example` | Every environment variable for both apps, with secrets blank |
+| `backend/.env.example`, `frontend/.env.example` | Every environment variable for each app, with secrets blank |
 
 ## Local setup
 
 **Prerequisites:** Python 3.11+ and Node 20+.
 
 ```bash
+git clone https://github.com/Abhinav-055/Scaler-signal-clone.git
+cd Scaler-signal-clone
+
 # 1. Backend  (http://localhost:8000)
 cd backend
 python -m venv .venv
@@ -330,7 +353,7 @@ uvicorn app.main:app --reload --port 8000
 # First start runs migrations and seeds demo data automatically.
 # Reset the demo data at any time:  python seed.py --reset
 
-# 2. Frontend  (http://localhost:3000)
+# 2. Frontend  (http://localhost:3000), in a second terminal from the repo root
 cd frontend
 npm install
 cp .env.example .env.local
@@ -354,7 +377,7 @@ cd frontend && npx tsc --noEmit && npm run lint && npm run build
 
 | Variable | Default | Description |
 |---|---|---|
-| `DATABASE_URL` | `sqlite:///./signal.db` | On Render: `sqlite:////data/signal.db` (four slashes = absolute path on the persistent disk) |
+| `DATABASE_URL` | `sqlite:///./signal.db` | SQLite file, relative to `backend/`. Same value on Render (free plan: recreated on each deploy/restart) |
 | `CORS_ORIGINS` | `http://localhost:3000` | Comma-separated exact origins, no trailing slash |
 | `CLOUDINARY_CLOUD_NAME` | _(empty)_ | Uploads return 503 until these three are set |
 | `CLOUDINARY_API_KEY` | _(empty)_ | |
@@ -373,23 +396,47 @@ cd frontend && npx tsc --noEmit && npm run lint && npm run build
 
 `NEXT_PUBLIC_*` values are baked into the public JS bundle at build time: never put secrets in them, and redeploy after changing them.
 
-A root [`.env.example`](.env.example) lists every variable for both apps in one place. Secrets (Cloudinary keys, `FIXED_OTP`) are read only from the environment; `.env` files are gitignored.
+[`backend/.env.example`](backend/.env.example) and [`frontend/.env.example`](frontend/.env.example) list every variable. Secrets (Cloudinary keys, `FIXED_OTP`) are read only from the environment; `.env` files are gitignored.
 
 ## Deployment
 
-Full step-by-step guide: **[DEPLOY.md](DEPLOY.md)**. It covers Render and Vercel setup, CORS, verification and troubleshooting. In short:
+The live demo runs the backend on **Render** (free plan) and the frontend on **Vercel**.
 
-1. **Render** (backend): a Docker web service from the [`render.yaml`](render.yaml) Blueprint (root `backend`, `/api/health` check), on a paid instance (Starter) with a persistent disk at `/data`, plus `DATABASE_URL=sqlite:////data/signal.db`, the Cloudinary keys and `FIXED_OTP`. Run **one instance**, because WebSocket connections live in memory.
-2. **Vercel** (frontend): root directory `frontend`, `NEXT_PUBLIC_API_URL=https://<api>`, `NEXT_PUBLIC_WS_URL=wss://<api>/ws`.
-3. Put the Vercel URL into Render's `CORS_ORIGINS`, then verify: `/api/health`, a WebSocket with status 101 plus ping/pong in DevTools, and a two-browser chat.
+1. **Render** (backend), created by hand as a **Web Service**:
+   - **New → Web Service**, connect the GitHub repo.
+   - **Language:** Docker. **Root Directory:** `backend`, so Render builds `backend/Dockerfile`. Leave the start command empty, because the Dockerfile runs `uvicorn app.main:app --host 0.0.0.0 --port $PORT …`. Render sets `PORT` itself.
+   - **Instance type:** Free. **Health Check Path:** `/api/health`.
+   - **Environment variables:**
+     ```env
+     DATABASE_URL=sqlite:///./signal.db
+     CORS_ORIGINS=https://super-doodle-ten.vercel.app
+     CLOUDINARY_CLOUD_NAME=…
+     CLOUDINARY_API_KEY=…
+     CLOUDINARY_API_SECRET=…
+     FIXED_OTP=123456
+     SESSION_DAYS=30
+     AUTO_SEED=true
+     ```
+   - Keep **one instance**, because WebSocket connections live in memory.
+2. **Vercel** (frontend): import the repo with root directory `frontend` and set
+   `NEXT_PUBLIC_API_URL=https://super-doodle-nou4.onrender.com`,
+   `NEXT_PUBLIC_WS_URL=wss://super-doodle-nou4.onrender.com/ws`, and optionally `NEXT_PUBLIC_DEMO_OTP=123456`. These are baked in at build time, so redeploy after changing them.
+3. **CORS:** set `CORS_ORIGINS=https://super-doodle-ten.vercel.app` on Render (exact origin, no trailing slash).
+4. **Verify:**
+   - `https://super-doodle-nou4.onrender.com/api/health` returns `{"status":"ok"}`.
+   - In DevTools → Network → WS, `/ws` shows status **101** and a `ping`/`pong` every 25 s.
+   - The two-browser chat test works against the Vercel URL.
 
-On Render's **free** plan there is no persistent disk: the SQLite file is reset (and re-seeded) on every deploy or restart, and the service sleeps after 15 minutes idle. Fine for a quick look, but use Starter for a demo that keeps its data.
+**Free-plan behaviour:**
+- There is no persistent disk, so the SQLite file lives inside the container. Every deploy or restart starts from an empty database, which is re-seeded with the demo accounts automatically (`AUTO_SEED=true`). New accounts and messages don't survive a restart.
+- The service sleeps after 15 minutes idle: open WebSockets drop, and the next request waits about a minute. The client reconnects on its own.
 
 ## Assumptions and simplifications
 
 - **Mocked OTP:** no SMS provider. Every number accepts the code in `FIXED_OTP` (`123456` in the examples).
 - **Simulated encryption:** messages travel over TLS (HTTPS/WSS) but are stored in plain text on the server. The lock notice and safety number are UI only; the safety number is a SHA-512 of both user ids.
 - **Single-instance WebSocket manager:** connections live in one process's memory, so the backend must run as one replica.
+- **Ephemeral demo database:** on Render's free plan there is no persistent disk, so SQLite is reset to the seeded demo data on every deploy/restart.
 - **Public Cloudinary URLs for images and videos:** they are shown from their public `secure_url`. Other files (PDFs etc.) are downloaded through a 5-minute signed link from `/attachments/{id}/download`, after a membership check.
 - **Disappearing timer starts on send**, whereas Signal starts it when each recipient *reads* the message.
 - Delete is "for me" only (no delete-for-everyone or edit). Voice/video calls, stories, stickers, voice messages and linked devices are placeholders ("coming soon").
@@ -401,7 +448,7 @@ On Render's **free** plan there is no persistent disk: the SQLite file is reset 
 ## Production improvements
 
 - **Redis pub/sub** (or NATS) between app instances so WebSocket fan-out works across replicas; move presence into Redis with TTLs.
-- **Postgres** instead of SQLite for concurrent writers, plus `async` SQLAlchemy, connection pooling, and point-in-time backups.
+- **Persistent storage:** a managed **Postgres** database (or SQLite on a persistent disk) so data survives restarts, plus `async` SQLAlchemy, connection pooling, and point-in-time backups.
 - **Authenticated Cloudinary delivery for images and videos too** (files already use signed, expiring links), virus scanning, and per-user upload quotas.
 - **Real end-to-end encryption** with the Signal Protocol (X3DH + Double Ratchet via libsignal), so the server only stores ciphertext.
 - Real OTP via an SMS provider with rate limiting, and refresh tokens / device-bound sessions.
